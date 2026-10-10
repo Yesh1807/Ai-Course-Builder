@@ -3,6 +3,7 @@ import { ArrowRight, Clock3, Plus, Flame } from "lucide-react";
 import Navbar from "../components/NavBar";
 import CourseCard from "../components/CourseCard";
 import ProgressBar from "../components/ProgressBar";
+import BackendStatus from "../components/BackendStatus";
 
 const courses = [
   {
@@ -92,6 +93,9 @@ function Dashboard() {
 
             <div className="mt-6 max-w-xl">
               <ProgressBar progress={78} />
+            </div>
+            <div className="mt-4">
+              <BackendStatus />
             </div>
           </div>
         </section>
