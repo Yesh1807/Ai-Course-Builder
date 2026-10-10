@@ -1,98 +1,183 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, BookOpen } from "lucide-react";
-import { sampleCourse } from "../data/sampleCourse";
-import CourseSidebar from "../components/CourseSideBar";
-import LessonContent from "../components/LessonContent";
-
-function getAllLessons(course) {
-  return course.modules.flatMap((module) => module.lessons);
-}
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, BookOpen, CheckCircle, Circle } from "lucide-react";
+import api from "../services/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function CourseLearning() {
-  const course = sampleCourse;
-  const allLessons = useMemo(() => getAllLessons(course), [course]);
+  const { courseId } = useParams();
+  const navigate = useNavigate();
 
-  const [activeLessonId, setActiveLessonId] = useState(allLessons[0]?.id);
-  const [completedLessonIds, setCompletedLessonIds] = useState([]);
+  const [course, setCourse] = useState(null);
+  const [activeLesson, setActiveLesson] = useState(null);
+  const [completed, setCompleted] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const activeIndex = allLessons.findIndex(
-    (lesson) => lesson.id === activeLessonId,
-  );
+  useEffect(() => {
+    async function loadCourse() {
+      try {
+        setLoading(true);
+        const response = await api.get(`/courses/${courseId}`);
+        const data = response.data.course;
 
-  const lesson = allLessons[activeIndex];
-  const previousLesson = allLessons[activeIndex - 1] ?? null;
-  const nextLesson = allLessons[activeIndex + 1] ?? null;
+        setCourse(data);
 
-  const progress = allLessons.length
-    ? Math.round((completedLessonIds.length / allLessons.length) * 100)
-    : 0;
+        const firstLesson = data.modules.flatMap((module) => module.lessons)[0];
 
-  function markComplete() {
-    setCompletedLessonIds((previous) =>
-      previous.includes(activeLessonId)
-        ? previous
-        : [...previous, activeLessonId],
+        setActiveLesson(firstLesson || null);
+        setError("");
+      } catch (err) {
+        setError(err.response?.data?.message || "Unable to load this course.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadCourse();
+  }, [courseId]);
+
+  if (loading) {
+    return <main className="p-8 text-slate-500">Loading course...</main>;
+  }
+
+  if (error || !course) {
+    return (
+      <main className="p-8">
+        <p className="mb-4 text-red-600">{error || "Course not found."}</p>
+        <button
+          onClick={() => navigate("/")}
+          className="text-indigo-600 hover:underline"
+        >
+          Back to dashboard
+        </button>
+      </main>
     );
   }
 
-  function handleNavigate(lessonId) {
-    setActiveLessonId(lessonId);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  const allLessons = course.modules.flatMap((module) => module.lessons);
+  const progress = allLessons.length
+    ? Math.round((completed.length / allLessons.length) * 100)
+    : 0;
 
-  function handleAskTutor() {
-    window.alert("AI Tutor will be connected when we implement the backend.");
-  }
+  const content = activeLesson?.content;
+  const article =
+    typeof content === "string"
+      ? content
+      : content?.article || content?.content || "No lesson content available.";
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-white">
-      <header className="z-10 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => (window.location.href = "/")}
-            className="rounded-md p-2 text-slate-500 hover:bg-slate-100"
-            aria-label="Back to dashboard"
-          >
-            <ArrowLeft size={19} />
-          </button>
+    <div className="min-h-screen bg-slate-50 md:flex">
+      <aside
+        className="w-full shrink-0 border-r border-slate-200
+        bg-white p-5 md:min-h-screen md:w-80"
+      >
+        <button
+          onClick={() => navigate("/")}
+          className="mb-6 flex items-center gap-2 text-sm text-slate-500
+            hover:text-indigo-600"
+        >
+          <ArrowLeft size={17} /> My Courses
+        </button>
 
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
-            <BookOpen size={19} />
-          </div>
-
-          <span className="font-semibold text-slate-900">CourseAI</span>
+        <div className="mb-5 flex items-center gap-3">
+          <BookOpen className="text-indigo-600" size={25} />
+          <h1 className="font-bold text-slate-900">{course.title}</h1>
         </div>
 
-        <span className="hidden text-sm text-slate-500 sm:block">
-          {course.title}
-        </span>
-      </header>
-
-      <div className="flex min-h-0 flex-1">
-        <CourseSidebar
-          course={course}
-          activeLessonId={activeLessonId}
-          completedLessonIds={completedLessonIds}
-          onSelectLesson={handleNavigate}
-          progress={progress}
-        />
-
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          {lesson ? (
-            <LessonContent
-              lesson={lesson}
-              previousLesson={previousLesson}
-              nextLesson={nextLesson}
-              isCompleted={completedLessonIds.includes(activeLessonId)}
-              onComplete={markComplete}
-              onNavigate={handleNavigate}
-              onAskTutor={handleAskTutor}
+        <div className="mb-6">
+          <div className="mb-2 flex justify-between text-xs text-slate-500">
+            <span>Course progress</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-indigo-600"
+              style={{ width: `${progress}%` }}
             />
-          ) : (
-            <p className="p-8 text-slate-500">No lessons available.</p>
-          )}
-        </main>
-      </div>
+          </div>
+        </div>
+
+        {course.modules.map((module) => (
+          <section key={module.id} className="mb-5">
+            <h2 className="mb-2 text-sm font-semibold text-slate-800">
+              {module.position}. {module.title}
+            </h2>
+
+            <div className="space-y-1">
+              {module.lessons.map((lesson) => {
+                const isDone = completed.includes(lesson.id);
+                const isActive = activeLesson?.id === lesson.id;
+
+                return (
+                  <button
+                    key={lesson.id}
+                    onClick={() => setActiveLesson(lesson)}
+                    className={`flex w-full items-start gap-2 rounded-lg
+                      px-3 py-2 text-left text-sm ${
+                        isActive
+                          ? "bg-indigo-50 font-medium text-indigo-700"
+                          : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                  >
+                    {isDone ? (
+                      <CheckCircle size={16} className="mt-0.5 shrink-0" />
+                    ) : (
+                      <Circle size={16} className="mt-0.5 shrink-0" />
+                    )}
+                    <span>{lesson.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </aside>
+
+      <main className="min-w-0 flex-1 px-5 py-8 md:px-12">
+        {activeLesson ? (
+          <article className="mx-auto max-w-3xl">
+            <p className="mb-3 text-sm font-medium text-indigo-600">
+              {course.topic} · {activeLesson.duration_minutes} min
+            </p>
+
+            <h1 className="mb-6 text-3xl font-bold text-slate-900">
+              {activeLesson.title}
+            </h1>
+
+            <div className="lesson-article">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {article}
+              </ReactMarkdown>
+            </div>
+
+            <div className="mt-10 border-t border-slate-200 pt-6">
+              <button
+                onClick={() => {
+                  setCompleted((previous) =>
+                    previous.includes(activeLesson.id)
+                      ? previous
+                      : [...previous, activeLesson.id],
+                  );
+                }}
+                disabled={completed.includes(activeLesson.id)}
+                className="rounded-xl bg-indigo-600 px-5 py-3
+                  font-semibold text-white hover:bg-indigo-700
+                  disabled:bg-emerald-600"
+              >
+                {completed.includes(activeLesson.id)
+                  ? "Lesson completed"
+                  : "Mark as completed"}
+              </button>
+            </div>
+          </article>
+        ) : (
+          <p className="text-slate-500">
+            This course doesn't contain any lessons yet.
+          </p>
+        )}
+      </main>
     </div>
   );
 }
